@@ -267,5 +267,74 @@ def scan(
     console.print_json(json.dumps(summary, default=str))
 
 
+@app.command()
+def serve(
+    project: Annotated[Path, typer.Option("--project", "-p", help="Path to the project to scan for KG")] = Path("."),
+    kg_db: Annotated[Path, typer.Option("--kg-db", help="KG SQLite path")] = Path("knowledge_graph.db"),
+    flow_db: Annotated[Path, typer.Option("--flow-db", help="Flow state SQLite path")] = Path(
+        os.environ.get("SDDP_FLOW_STATE_DB", str(Path.home() / ".sddp-pet" / "flow_state.db"))
+    ),
+    host: Annotated[str, typer.Option("--host", help="Bind host")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", help="Bind port")] = 8765,
+    mock: Annotated[bool, typer.Option("--mock", help="Use mock LLM (no OPENAI_API_KEY needed)")] = False,
+) -> None:
+    """Start the WebSocket IPC server (Dev-Phase 1 D1-4).
+
+    Listens on ws://<host>:<port> (default ws://127.0.0.1:8765) for the Electron
+    frontend. Runs the SDDP flow in a worker thread per `start_flow` RPC; pushes
+    state changes / documents / cost updates back to the client.
+
+    Examples:
+        sddp serve                              # real-LLM mode (needs OPENAI_API_KEY)
+        sddp serve --mock                       # mock-LLM mode (CI / dev / frontend dev)
+        sddp serve --port 9000                  # custom port
+    """
+    import uvicorn
+
+    use_mock = mock or not os.environ.get("OPENAI_API_KEY")
+    if use_mock and not mock:
+        console.print("[yellow]OPENAI_API_KEY not set; --mock mode auto-enabled[/yellow]")
+    if project.is_dir():
+        from ..kg.scan import scan_project
+        try:
+            summary = scan_project(project, db_path=kg_db, prefer_scip=False)
+            console.print(
+                f"[green]KG pre-scan:[/green] {summary.get('parsed_files', 0)} files, "
+                f"{summary.get('total_symbols', 0)} symbols → {kg_db}"
+            )
+        except Exception as e:
+            console.print(f"[yellow]KG pre-scan failed (non-fatal):[/yellow] {e}")
+
+    def factory_factory(cost_meter=None, kg_tools=None):
+        from ..engine.agents import AgentFactory
+        llm_client = None if use_mock else _build_openai_client_silent()
+        return AgentFactory(
+            llm_client=llm_client,
+            cost_meter=cost_meter or CostMeter(),
+            kg_tools=kg_tools,
+            mock_mode=use_mock,
+        )
+
+    from ..ipc.server import create_app
+    app = create_app(
+        agent_factory_factory=factory_factory,
+        kg_db_path=str(kg_db),
+        flow_db_path=str(flow_db),
+        mock_mode=use_mock,
+    )
+    console.print(f"[bold green]SDDP IPC server[/bold green] → ws://{host}:{port}  (mock={use_mock})")
+    uvicorn.run(app, host=host, port=port, log_level="info")
+
+
+def _build_openai_client_silent():
+    """Like _build_openai_client but suppresses rich error printing (used by `serve`)."""
+    try:
+        from openai import OpenAI
+        return OpenAI()
+    except Exception as e:
+        console.print(f"[red]Failed to construct OpenAI client:[/red] {e}")
+        raise
+
+
 if __name__ == "__main__":
     app()

@@ -1,0 +1,17 @@
+# Node / electron-vite
+node_modules/
+dist/
+out/
+.vite/
+
+# Electron binary downloads (regenerable via npm install)
+*electron-v*-linux-*.zip
+electron-v*.zip
+
+# Test artifacts
+playwright-report/
+test-results/
+coverage/
+
+# Local env (secrets MUST NOT commit; see ../../.gitignore for global secret patterns)
+.env.local

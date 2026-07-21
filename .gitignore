@@ -15,6 +15,15 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# ---- Node / TypeScript (frontend) ----
+node_modules/
+**/node_modules/
+**/dist/
+**/.vite/
+**/out/
+**/playwright-report/
+**/test-results/
+
 # ---- Virtualenvs ----
 .venv/
 venv/

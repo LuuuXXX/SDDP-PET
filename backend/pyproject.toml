@@ -26,6 +26,10 @@ dependencies = [
     "rich>=13.7,<14",
     # Persistence
     # (sqlite3 is stdlib)
+    # Dev-Phase 1: WebSocket IPC server (analysis/08 §2.3 — fastapi patch selected to avoid bumping starlette/uvicorn/websockets)
+    "fastapi==0.139.2",
+    "uvicorn[standard]==0.51.0",  # promote from transitive (DP0 lockfile) to direct
+    "python-multipart==0.0.32",   # for form/file uploads if ever needed; already transitive
 ]
 
 [project.optional-dependencies]
@@ -35,6 +39,8 @@ dev = [
     "pytest-cov>=4.1,<6",
     "respx>=0.20,<0.22",
     "pip-tools>=7.4,<8",
+    # Dev-Phase 1: WS server testing
+    "httpx>=0.26,<1",  # for FastAPI TestClient (already transitive via openai; pin upper)
 ]
 scip = [
     # scip-python is distributed via npm/golang; this is a placeholder for any PyPI helper
