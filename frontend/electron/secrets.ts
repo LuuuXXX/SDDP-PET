@@ -19,7 +19,7 @@
  *   isUsingFallback(): boolean  — for diagnostic UI
  */
 
-import { keyring } from "@napi-rs/keyring";
+import { Entry } from "@napi-rs/keyring";
 import { safeStorage, app } from "electron";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -67,7 +67,7 @@ export async function setPassword(
   password: string,
 ): Promise<void> {
   try {
-    const entry = keyring(service, account);
+    const entry = new Entry(service, account);
     entry.setPassword(password);
     _usingFallback = false;
     return;
@@ -101,7 +101,7 @@ export async function getPassword(
 ): Promise<string | undefined> {
   // Try keyring
   try {
-    const entry = keyring(service, account);
+    const entry = new Entry(service, account);
     const pw = entry.getPassword();
     if (pw !== null && pw !== undefined && pw.length > 0) {
       return pw;
@@ -131,7 +131,7 @@ export async function deletePassword(
 ): Promise<boolean> {
   let deleted = false;
   try {
-    const entry = keyring(service, account);
+    const entry = new Entry(service, account);
     deleted = entry.deletePassword() || deleted;
   } catch {
     // ignore

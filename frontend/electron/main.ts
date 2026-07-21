@@ -1,13 +1,7 @@
 /**
  * Electron main process entry (Dev-Phase 1 D1-1/D1-2/D1-13).
  *
- * Stub for Section 3.5 (OTEL hard-disable) — full window creation logic lands
- * in Section 5 (task 5.1). Committed now so D1-13 env var is enforced from
- * day-1 of any frontend dev work.
- *
- * Per specs/security-compliance/spec.md Requirement: 进程 MUST 硬编码
- * `OTEL_SDK_DISABLED=true` 禁用遥测 — env var MUST be set before any module
- * import that could initialize an OTEL tracer (i.e., before electron app ready).
+ * Wires up OTEL hard-disable (D1-13) and creates both windows on app ready.
  */
 
 // D1-13: hard-disable OpenTelemetry. MUST come before any other import.
@@ -17,10 +11,21 @@ process.env.OTEL_METRICS_EXPORTER = "none";
 process.env.OTEL_LOGS_EXPORTER = "none";
 process.env.OTEL_PYTHON_DISABLE_AGENT = "true";
 
-// Now safe to import the rest
-import { app } from "electron";
+import { app, BrowserWindow } from "electron";
+import { createWindow1, createWindow2 } from "./windows";
 
-// Stub handler — full dual-window logic lands in task 5.1
+// Increase main-process GC friendliness for long-running WS connections
+app.commandLine.appendSwitch("js-flags", "--max-old-space-size=512");
+
+// Quitting flag (used by window2 close handler to differentiate user-quit
+// from app.shutdown). Set to true in before-quit so windows' close handlers
+// can short-circuit the "quit app" path.
+let isQuitting = false;
+Object.defineProperty(app, "isQuitting", {
+  get: () => isQuitting,
+  configurable: true,
+});
+
 app.whenReady().then(() => {
   // eslint-disable-next-line no-console
   console.log(
@@ -28,9 +33,24 @@ app.whenReady().then(() => {
       process.env.OTEL_SDK_DISABLED +
       " (D1-13 enforced)",
   );
-  // TODO(task 5.1): createWindow1() + createWindow2() with click-through hit-testing
+  createWindow1();
+  createWindow2();
 });
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
+
+// Surface certificate: prevent silent failures when WS endpoint has cert issues
+// (defensive for SSH-tunnel scenarios in remote mode, task 4.x)
+app.on("certificate-error", (event, _webContents, _url, _error, _certificate, callback) => {
+  // For DP1 we reject all certificates with errors (fail-closed)
+  event.preventDefault();
+  callback(false);
+});
+
+app.on("before-quit", () => {
+  isQuitting = true;
+});
+
+export { BrowserWindow };
