@@ -1,0 +1,78 @@
+{
+  "project": "tests/fixtures/sample-python-project",
+  "description": "Ground-truth for KG accuracy evaluation (D0-6). Captures expected callers/impact/deps/api for known symbols/files/modules.",
+  "queries": [
+    {
+      "method": "find_callers",
+      "args": {"symbol_name": "add", "depth": 1},
+      "expected": {
+        "caller_names_contains": ["sum_squares", "main", "test_add"],
+        "min_count": 3
+      }
+    },
+    {
+      "method": "find_callers",
+      "args": {"symbol_name": "multiply", "depth": 1},
+      "expected": {
+        "caller_names_contains": ["square", "cube", "main"],
+        "min_count": 3
+      }
+    },
+    {
+      "method": "find_callers",
+      "args": {"symbol_name": "square", "depth": 1},
+      "expected": {
+        "caller_names_contains": ["cube", "sum_squares"],
+        "min_count": 2
+      }
+    },
+    {
+      "method": "find_file_impact",
+      "args": {"file_basename": "utils.py"},
+      "expected": {
+        "impacted_basenames_contains": ["calculator.py", "main.py", "test_sample.py", "api.py"],
+        "min_count": 4
+      }
+    },
+    {
+      "method": "find_file_impact",
+      "args": {"file_basename": "logger.py"},
+      "expected": {
+        "impacted_basenames_contains": ["datastore.py"],
+        "min_count": 1
+      }
+    },
+    {
+      "method": "get_module_api",
+      "args": {"module_name": "utils"},
+      "expected": {
+        "export_names_contains": ["add", "multiply", "format_pair"],
+        "min_count": 3
+      }
+    },
+    {
+      "method": "get_module_api",
+      "args": {"module_name": "calculator"},
+      "expected": {
+        "export_names_contains": ["square", "cube", "sum_squares"],
+        "min_count": 3
+      }
+    },
+    {
+      "method": "find_dependencies",
+      "args": {"symbol_name": "square"},
+      "expected": {
+        "dep_names_contains": ["multiply"],
+        "min_count": 1
+      }
+    },
+    {
+      "method": "find_dependencies",
+      "args": {"symbol_name": "cube"},
+      "expected": {
+        "dep_names_contains": ["multiply", "square"],
+        "min_count": 2
+      }
+    }
+  ]
+}

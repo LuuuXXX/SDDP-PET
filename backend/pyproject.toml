@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sddp-pet"
+version = "0.1.0-dev"
+description = "SDDP-Pet: Spec-Driven Development Process desktop pet engine (Dev-Phase 0 - engine core MVP)"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "SDDP-PET Project" }]
+
+dependencies = [
+    # CrewAI - exact patch locked per CREWAI_VERSION_RATIONALE.md (analysis/03 准则: 必含fix / 避breaking / 选stable / 精确patch)
+    "crewai==1.15.4",
+    # LLM reliability
+    "tenacity>=8.2,<9",
+    "pydantic>=2.6,<3",
+    # KG-MVP
+    "tree-sitter>=0.21,<0.25",
+    "tree-sitter-python>=0.21,<0.24",
+    "protobuf>=4.25,<5",
+    # CLI
+    "typer>=0.12,<0.20",
+    "rich>=13.7,<14",
+    # Persistence
+    # (sqlite3 is stdlib)
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<9",
+    "pytest-asyncio>=0.23,<0.25",
+    "pytest-cov>=4.1,<6",
+    "respx>=0.20,<0.22",
+    "pip-tools>=7.4,<8",
+]
+scip = [
+    # scip-python is distributed via npm/golang; this is a placeholder for any PyPI helper
+    # actual indexer invoked via subprocess (see sddp/kg/scip_indexer.py)
+]
+
+[project.scripts]
+sddp = "sddp.cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sddp*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
+markers = [
+    "e2e: end-to-end tests requiring real OpenAI API key (skipped in CI)",
+    "slow: tests that take >5s",
+]
+
+[tool.coverage.run]
+source = ["sddp"]
+omit = ["tests/*"]

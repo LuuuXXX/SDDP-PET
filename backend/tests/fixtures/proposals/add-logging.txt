@@ -1,0 +1,21 @@
+给这个 Python 项目加一个结构化日志功能。
+
+背景：
+sample-python-project 当前的 Logger（logger.py）只是 print 包装，无级别、无结构化字段、无文件轮转。
+我希望：
+
+1. 把 Logger 改造成支持 4 个级别（DEBUG / INFO / WARNING / ERROR），低于配置级别的日志被丢弃。
+2. 每条日志输出 JSON 格式，含字段：timestamp(ISO8601)、level、message、logger_name、可选 extra(dict)。
+3. 新增 FileHandler 支持：可同时输出到 stdout 和文件（按大小轮转，默认 10MB × 3 份）。
+4. 在 utils.py 中给 add / multiply / format_pair 三个函数加 DEBUG 级别的入参/返回值日志（用 functools.wraps 装饰器，不修改函数主体逻辑）。
+5. config.py 的 Config 增加 log_level: str = "INFO" 和 log_file: str | None = None 两个字段。
+
+约束：
+- 不引入 loguru / structlog 等第三方日志库，仅用标准库 logging + json。
+- 现有 main.py 调用 Logger(cfg.name).info(...) 的代码不需修改（保持 .info API 兼容）。
+- 装饰器对函数性能影响最小（DEBUG 级别关闭时零开销）。
+
+期望产出：
+- proposal.md：解析上述需求
+- delta-spec.md：Logger 新 API 契约（构造参数、级别方法、Handler 接口）、影响面分析（main.py / utils.py）
+- delta-design.md：装饰器实现策略、Handler 多路分发设计、向后兼容方案

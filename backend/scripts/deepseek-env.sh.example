@@ -1,0 +1,8 @@
+# Copy this file to deepseek-env.local.sh and fill in your DeepSeek API key.
+# deepseek-env.local.sh is gitignored — never commit real secrets.
+#
+#   cp scripts/deepseek-env.sh.example scripts/deepseek-env.local.sh
+#   $EDITOR scripts/deepseek-env.local.sh
+#
+# Get a key at: https://platform.deepseek.com/api_keys
+export DEEPSEEK_API_KEY="sk-replace-me"

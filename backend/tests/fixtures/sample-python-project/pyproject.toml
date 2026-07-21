@@ -1,0 +1,5 @@
+# Project manifest placeholder
+[project]
+name = "sample-python-project"
+version = "0.1.0"
+description = "Sample fixture for KG tests"

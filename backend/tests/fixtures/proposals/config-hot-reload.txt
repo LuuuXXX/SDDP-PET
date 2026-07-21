@@ -1,0 +1,21 @@
+给这个 Python 项目加一个配置热重载功能。
+
+背景：
+sample-python-project 当前的 Config 模块（config.py）通过 load_config(path) 在启动时一次性加载配置，运行期间无法变更。
+我希望：
+
+1. 在 config.py 中新增一个 ConfigWatcher 类，监听配置文件（默认 config.json）的 mtime 变化；当文件被外部修改时，重新调用 load_config 并把新 Config 推送到订阅者。
+2. ConfigWatcher 通过 asyncio 后台任务运行（不阻塞主线程），每 1 秒轮询一次 mtime。
+3. Logger（logger.py）订阅 ConfigWatcher；当 debug 字段从 False 变为 True 时，立即把日志级别降到 DEBUG。
+4. 在 main.py 启动时初始化 ConfigWatcher 并在程序退出时优雅停止（接收 SIGTERM/SIGINT）。
+5. 保持向后兼容：原有的 load_config(path) 签名不变；ConfigWatcher 是新增的可选能力，不影响已有调用方。
+
+约束：
+- 不引入 watchdog 等第三方依赖，仅用标准库（asyncio / os.path / signal）。
+- 不修改 Config dataclass 的现有字段定义；如需扩展，只新增字段。
+- 异常处理：配置文件不存在时 ConfigWatcher 不应崩溃，而是记录告警并跳过本次轮询。
+
+期望产出：
+- proposal.md：解析上述需求（含变更范围预估、约束与风险）
+- delta-spec.md：定义 ConfigWatcher 的接口契约（subscribe/unsubscribe/start/stop）、影响面分析（列出受影响的现有调用方：main.py / logger.py）
+- delta-design.md：架构决策（轮询 vs inotify、订阅模式、并发模型）、数据流、异常处理

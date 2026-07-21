@@ -1,0 +1,26 @@
+重构这个 Python 项目的 utils 模块。
+
+背景：
+sample-python-project 的 utils.py 是一个"杂货抽屉"，混放了数学函数（add / multiply）、字符串函数（format_pair），后续还可能再加文件/IO 工具。
+这种组织方式不利于维护，调用方 main.py 也只能 from utils import * 一次性引入。
+
+我希望：
+
+1. 把 utils.py 拆分为按职责分目录的子包 utils/：
+   - utils/math_ops.py：add、multiply（保留原签名）
+   - utils/string_ops.py：format_pair
+   - utils/__init__.py：提供向后兼容的 re-export（from utils.math_ops import add, multiply 等），保证现有 `from utils import add` 调用不变。
+2. 给 utils 中的所有公共函数加完整的类型注解（参数 + 返回值）和 NumPy-style docstring。
+3. 在 utils/math_ops.py 中新增 divide(a, b) 函数，b=0 时抛 ZeroDivisionError 并带可读错误消息。
+4. utils/string_ops.py 中的 format_pair 增加可选参数 fmt: Literal["repr","str","json"] = "repr"，控制输出格式；默认行为不变。
+5. 为 utils 子包补单元测试 tests/test_utils_math.py 和 tests/test_utils_string.py，覆盖率 ≥ 90%。
+
+约束：
+- 不破坏向后兼容：所有现有的 from utils import X 调用必须继续工作。
+- 拆分后的 import 顺序保持稳定（避免循环 import）。
+- 影响面分析必须列出所有 import utils 的文件（依据知识图查询）。
+
+期望产出：
+- proposal.md：解析重构动机 + 范围
+- delta-spec.md：utils 子包的接口契约（公共函数签名）、影响面分析（基于知识图 find_callers/find_file_impact 查询）
+- delta-design.md：模块划分决策、向后兼容策略、测试设计

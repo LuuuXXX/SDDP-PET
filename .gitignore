@@ -1,0 +1,58 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.eggs/
+build/
+dist/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Virtualenvs ----
+.venv/
+venv/
+env/
+
+# ---- SDDP runtime artifacts (regenerable) ----
+# KG SQLite — regenerate via `python -m sddp.kg.scan <path>`
+knowledge_graph.db
+*.db
+!openspec/**/contracts-index.md
+# Flow state DB — runtime only
+flow_state.db
+# Run outputs — kept out of git; persistent ones go under openspec/regression/
+out/
+# Cost reports from ad-hoc runs (regenerable)
+cost_report.json
+!openspec/regression/**/*.md
+
+# ---- Secrets (never commit) ----
+*.env
+*.env.local
+.env
+.env.local
+**/deepseek-env.local.sh
+**/*api_key*
+**/credentials*
+# Allow the template + shared non-secret config:
+!**/deepseek-env.sh
+!**/deepseek-env.sh.example
+
+# ---- Editor / OS ----
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ---- Logs ----
+*.log
+logs/
