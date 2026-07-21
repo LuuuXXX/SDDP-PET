@@ -1,16 +1,16 @@
-# SDDP-PET Backend (Dev-Phase 0)
+# SDDP-PET Backend (Dev-Phase 0 + 1)
 
-SDDP-PET (Spec-Driven Development Process desktop pet) 引擎核心，Dev-Phase 0 实现。
+SDDP-PET (Spec-Driven Development Process desktop pet) 引擎核心。
 
-本目录是 Dev-Phase 0 范围内的所有 Python 代码与测试：
-- 5 角色线性 CrewAI Flow（需求官 → 调度官 → 架构师 → 实施师 → 代码资产管理员）
-- 4 个基础设施：SafeAgent / Adaptation Layer / Code-Knowledge-Graph(MVP) / Engine Core
-- CLI 入口 `sddp run` + JSON↔Markdown 渲染 + 内置 token 计量
+本目录是后端 Python 代码与测试，覆盖 Dev-Phase 0 + Dev-Phase 1 的后端范围：
+- **Dev-Phase 0**：5 角色线性 CrewAI Flow（需求官 → 调度官 → 架构师 → 实施师 → 代码资产管理员）+ SafeAgent / Adaptation Layer / KG-MVP / Engine Core + `sddp run` CLI + JSON↔Markdown 渲染 + 内置 token 计量 + `@persist` 中断恢复
+- **Dev-Phase 1**：`sddp serve` WebSocket IPC server（端口 8765）+ `WebSocketHumanFeedbackAdapter` + 安全 prefilter（正则脱敏）+ OTEL 硬禁用 + 观测指标记录（`~/.sddp-pet/metrics.json`）
 
 规格与设计依据：
 - 路线图与 DoD：[`../openspec/specs/development-roadmap/`](../openspec/specs/development-roadmap/)（`phases.md` / `dod.md` / `no-go-rollback.md` / `modules.md`）
-- 本阶段变更：[`../openspec/changes/dev-phase-0-engine-core/`](../openspec/changes/dev-phase-0-engine-core/)
-- 技术决策：[`../analysis/`](../analysis/)，特别是 [`../analysis/03-crewai-version-strategy.md`](../analysis/03-crewai-version-strategy.md)（CrewAI 选型）与 [`analysis/00-sddp-pet-final.md`](../analysis/00-sddp-pet-final.md)（总体设计）
+- Dev-Phase 0 变更（已 archive）：[`../openspec/changes/archive/2026-07-21-dev-phase-0-engine-core/`](../openspec/changes/archive/2026-07-21-dev-phase-0-engine-core/)
+- Dev-Phase 1 变更：[`../openspec/changes/dev-phase-1-desktop-pet-mvp/`](../openspec/changes/dev-phase-1-desktop-pet-mvp/)
+- 技术决策：[`../analysis/`](../analysis/)，特别是 [`03-crewai-version-strategy.md`](../analysis/03-crewai-version-strategy.md)、[`08-websocket-ipc-contract.md`](../analysis/08-websocket-ipc-contract.md)、[`09-secret-storage-cross-platform.md`](../analysis/09-secret-storage-cross-platform.md)
 
 ## 安装
 
@@ -34,6 +34,8 @@ pip install -e '.[dev]' --no-deps
 
 ## 运行
 
+### CLI 模式（Dev-Phase 0）
+
 `OPENAI_API_KEY` 未设置时自动降级到 `--mock` 模式（不调用真实 LLM，适合开发调试）。
 
 ### 跑一个 proposal
@@ -50,6 +52,25 @@ sddp run tests/fixtures/proposals/config-hot-reload.txt \
 # 显式 mock 模式（不调用 OpenAI API）
 sddp run tests/fixtures/proposals/add-logging.txt --project tests/fixtures/sample-python-project/ --mock --yes
 ```
+
+### IPC 服务器模式（Dev-Phase 1）
+
+Dev-Phase 1 引入 `sddp serve` —— 启动 FastAPI WebSocket 服务器（端口 8765），
+供 Electron 桌宠 UI 连接。
+
+```bash
+# 真实 LLM 模式（需 OPENAI_API_KEY 或 DeepSeek 经 scripts/deepseek-env.sh）
+sddp serve --project tests/fixtures/sample-python-project/
+
+# Mock 模式（前端开发 / CI 用，不需要 API key）
+sddp serve --mock --port 8765
+
+# 健康检查
+curl http://127.0.0.1:8765/health
+# → {"status":"ok","mock_mode":true}
+```
+
+完整 WS 消息契约见 [`analysis/08-websocket-ipc-contract.md`](../analysis/08-websocket-ipc-contract.md)。
 
 ### 输出目录
 

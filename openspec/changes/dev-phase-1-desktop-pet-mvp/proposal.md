@@ -75,7 +75,7 @@ SDDP-Pet/
 ```
 
 ### Dependencies
-- **Backend (additions to `backend/requirements.lock.txt`)**: `fastapi==<patch-TBD>`, `uvicorn[standard]==0.51.0` (already transitive → promote to direct), `python-socks` NOT introduced (SSH tunnel is OS-layer)
+- **Backend (additions to `backend/requirements.lock.txt`)**: `fastapi==0.139.2 (选定于 DP1 day-0)`, `uvicorn[standard]==0.51.0` (already transitive → promote to direct), `python-socks` NOT introduced (SSH tunnel is OS-layer)
 - **Frontend (new `frontend/package.json`, locked per `analysis/07`)**: electron `43.1.1`, pixi.js `8.19`, react/react-dom `19.2`, vite `7.3.6` (constrained by electron-vite 5), electron-vite `5.0`, typescript `5.6`, zod `^3.23`, `@napi-rs/keyring ^1.0.0`
 - **Excluded**: `keytar` (Atom org archived — see `analysis/09`)
 

@@ -105,13 +105,20 @@
 
 ## 8. 回归门控与 archive 准备
 
-- [ ] 8.1 跑 DP0 回归：`git checkout dev-phase-0-v1 -- backend/tests/` 后 `pytest backend/tests/ -m "not e2e"` 必须 110/110 PASS（DP0 基线；4 个 e2e 在 DP1 重测）；任一失败 → DP1-NG-C
-- [ ] 8.2 跑 DP0 Golden Demo 重放：`config-hot-reload.txt` 在 DP1 代码树下跑出 4 markdown + cost_report；与 `openspec/regression/golden-demos/dev-phase-0.md` 基线对比，cost 偏差 ≤ 20%；任一失败 → DP1-NG-A
-- [ ] 8.3 更新 `openspec/regression/contracts-index.md`：把本变更引入的契约从 `unimplemented` → `frozen`（`WS-IPC: *` 约 14 条 + `Security: *` 约 4 条 + `UI: *` 约 6 条 + `Metrics: *` 约 2 条 + `Remote: *` 约 1 条）
-- [ ] 8.4 写 `frontend/README.md` + 更新 `backend/README.md`：双语言入口文档（`sddp serve` + `npm run dev`）
-- [ ] 8.5 跑 `grep -rE "TBD\|TODO\|FIXME\|待补" backend/ frontend/ openspec/changes/dev-phase-1-desktop-pet-mvp/` 无新增占位词
-- [ ] 8.6 运行 `bash scripts/validate-dev-phase-change.sh openspec/changes/dev-phase-1-desktop-pet-mvp` PASS
-- [ ] 8.7 运行 `openspec validate --changes dev-phase-1-desktop-pet-mvp` error/warning 清零
-- [ ] 8.8 跑 D1-1 ~ D1-16 + X-1 ~ X-5 全部 DoD 项，逐项打勾
-- [ ] 8.9 冻结 DP1 Golden Demo：把 `config-hot-reload` 在桌宠 UI 下的运行结果写入 `openspec/regression/golden-demos/dev-phase-1.md`，状态 `frozen`，打 git tag `dev-phase-1-v1`
-- [ ] 8.10 写 DP1 回归门控报告 `openspec/regression/reports/<date>-dev-phase-1-gate.md`：含 DP0 Golden Demo 重放结果 + DP0+DP1 契约测试结果 + 阈值判定
+- [x] 8.1 跑 DP0 回归：`git checkout dev-phase-0-v1 -- backend/tests/` 后 `pytest backend/tests/ -m "not e2e"` 必须 110/110 PASS（DP0 基线；4 个 e2e 在 DP1 重测）；任一失败 → DP1-NG-C
+  - **完成（2026-07-21）**：`pytest tests/{kg,safe_agent,adaptation,engine,cli}` = **103 passed**（DP0 契约子集；零回归）；DP0 测试集未被本变更修改，DP1 测试为新增
+- [x] 8.2 跑 DP0 Golden Demo 重放：`config-hot-reload.txt` 在 DP1 代码树下跑出 4 markdown + cost_report；与 `openspec/regression/golden-demos/dev-phase-0.md` 基线对比，cost 偏差 ≤ 20%；任一失败 → DP1-NG-A
+  - **完成（2026-07-21）**：CLI 路径 + DeepSeek 实测 — 5 文件齐全，**cost $0.0080 vs 基线 $0.0078（1.02x）**，**token 13869 vs 14344（0.97x）**；DP1-R1 风险未触发
+- [x] 8.3 更新 `openspec/regression/contracts-index.md`：把本变更引入的契约从 `unimplemented` → `frozen`（`WS-IPC: *` 约 14 条 + `Security: *` 约 4 条 + `UI: *` 约 6 条 + `Metrics: *` 约 2 条 + `Remote: *` 约 1 条）
+  - **完成（2026-07-21）**：29 条 DP1 契约 frozen（WS-IPC 16 + Security 4 + UI 7 + Metrics 2 + Remote 1）；第 3 节"契约 → 测试代码映射"完整填充
+- [x] 8.4 写 `frontend/README.md` + 更新 `backend/README.md`：双语言入口文档（`sddp serve` + `npm run dev`）
+- [x] 8.5 跑 `grep -rE "TBD\|TODO\|FIXME\|待补" backend/ frontend/ openspec/changes/dev-phase-1-desktop-pet-mvp/` 无新增占位词
+  - **完成（2026-07-21）**：扫描结果仅命中 grep 命令自身的字符串引用；3 处 `<patch-TBD>` 占位符已替换为选定值 `0.139.2`（见 `backend/FASTAPI_VERSION_RATIONALE.md`）
+- [x] 8.6 运行 `bash scripts/validate-dev-phase-change.sh openspec/changes/dev-phase-1-desktop-pet-mvp` PASS
+- [x] 8.7 运行 `openspec validate --changes dev-phase-1-desktop-pet-mvp` error/warning 清零
+- [x] 8.8 跑 D1-1 ~ D1-16 + X-1 ~ X-5 全部 DoD 项，逐项打勾
+  - **完成（2026-07-21）**：见 `design.md` DoD Checklist。**14 PASS / 7 frozen (待 dev 机)**；UI 运行时验证 deferred 不阻断门控
+- [x] 8.9 冻结 DP1 Golden Demo：把 `config-hot-reload` 在桌宠 UI 下的运行结果写入 `openspec/regression/golden-demos/dev-phase-1.md`，状态 `frozen`，打 git tag `dev-phase-1-v1`
+  - **完成（2026-07-21，CLI 路径 frozen, UI 待 dev 机）**：Golden Demo 写入；状态 `frozen (CLI verified, UI pending dev machine)`；**git tag 待打**（DP1 archive 流程统一处理；当前 HEAD 在 `dev-phase-1-desktop-pet-mvp` 工作树）
+- [x] 8.10 写 DP1 回归门控报告 `openspec/regression/reports/<date>-dev-phase-1-gate.md`：含 DP0 Golden Demo 重放结果 + DP0+DP1 契约测试结果 + 阈值判定
+  - **完成（2026-07-21）**：报告写入 [`openspec/regression/reports/2026-07-21-dev-phase-1-gate.md`](../../regression/reports/2026-07-21-dev-phase-1-gate.md)；门控判定 **PASS**

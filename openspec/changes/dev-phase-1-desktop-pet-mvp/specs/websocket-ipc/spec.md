@@ -4,7 +4,7 @@
 
 依据 `analysis/08` 第二节与 `dod.md` D1-4，后端 MUST 通过 FastAPI WebSocket（端口 8765）与前端双向通信。本地模式直连 `ws://localhost:8765`；远程模式经 SSH `ssh -L 8765:localhost:8765` 隧道后**前端仍连 `ws://localhost:8765`**（前端无模式分支）。
 
-库版本锁定（`analysis/08` §二）：`uvicorn[standard]==0.51.0`（DP0 lockfile 既有，promote 为直接依赖）、`websockets==16.1.1`、`starlette==1.3.1`、`fastapi==<patch-TBD>`（DP1 day-0 用 `analysis/08` §2.3 验证脚本选定具体 patch，验证条件：不 bump starlette/uvicorn/websockets）。
+库版本锁定（`analysis/08` §二）：`uvicorn[standard]==0.51.0`（DP0 lockfile 既有，promote 为直接依赖）、`websockets==16.1.1`、`starlette==1.3.1`、`fastapi==0.139.2 (选定于 DP1 day-0)`（DP1 day-0 用 `analysis/08` §2.3 验证脚本选定具体 patch，验证条件：不 bump starlette/uvicorn/websockets）。
 
 #### Scenario: WebSocket 握手成功
 - **WHENT** 前端发起 `ws://localhost:8765` 连接

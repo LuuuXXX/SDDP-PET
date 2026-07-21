@@ -16,22 +16,36 @@
 
 | 契约名 | 类型 | 引入 Dev-Phase | 当前状态 | 来源 analysis 文档 |
 |--------|------|----------------|----------|---------------------|
-| `Push: agent_state_change` | WebSocket Push | 1 | `unimplemented` | `analysis/00` 第七节 Push 消息 |
-| `Push: document_produced` | WebSocket Push | 1 | `unimplemented` | `analysis/00` 第七节 Push 消息 |
-| `Push: cost_update` | WebSocket Push | 1 | `unimplemented` | `analysis/00` 第七节 Push 消息 |
-| `Push: feedback_required` | WebSocket Push | 1 | `unimplemented` | `analysis/00` 第七节 Push 消息 |
-| `Push: error` | WebSocket Push | 1 | `unimplemented` | `analysis/00` 第七节 Push 消息（含 error_code 枚举 7 种） |
-| `RPC req: start_flow` | WebSocket RPC | 1 | `unimplemented` | `analysis/00` 第七节 RPC 请求 |
-| `RPC req: user_feedback` | WebSocket RPC | 1 | `unimplemented` | `analysis/00` 第七节 RPC 请求 |
-| `RPC req: resume_flow` | WebSocket RPC | 1 | `unimplemented` | `analysis/00` 第七节 RPC 请求 |
-| `RPC req: abort_flow` | WebSocket RPC | 1 | `unimplemented` | `analysis/00` 第七节 RPC 请求 |
-| `RPC resp: flow_started` | WebSocket RPC | 1 | `unimplemented` | `analysis/00` 第七节 RPC 响应 |
-| `RPC resp: feedback_accepted` | WebSocket RPC | 1 | `unimplemented` | `analysis/00` 第七节 RPC 响应 |
-| `RPC resp: flow_resumed` | WebSocket RPC | 1 | `unimplemented` | `analysis/00` 第七节 RPC 响应 |
-| `RPC resp: flow_aborted` | WebSocket RPC | 1 | `unimplemented` | `analysis/00` 第七节 RPC 响应 |
-| `Heartbeat: ping/pong (30s/10s/3-miss)` | WebSocket 心跳 | 1 | `unimplemented` | `analysis/00` 第七节心跳机制 |
-| `Message correlation: message_id (UUID)` | WebSocket 关联 | 1 | `unimplemented` | `analysis/00` 第七节消息关联机制 |
-| `Error code enum (7 codes)` | WebSocket 错误 | 1 | `unimplemented` | `analysis/00` 第七节错误消息格式（LLM_TIMEOUT/LLM_AUTH_FAIL/LLM_RATE_LIMIT/PARSE_FAILURE/FLOW_STUCK/KNOWLEDGE_GRAPH_ERROR/SSH_CONNECTION_LOST） |
+| `Push: agent_state_change` | WebSocket Push | 1 | `frozen` | `analysis/00` 第七节 Push 消息；`analysis/08` §三 zod schema |
+| `Push: document_produced` | WebSocket Push | 1 | `frozen` | `analysis/00` 第七节 Push 消息 |
+| `Push: cost_update` | WebSocket Push | 1 | `frozen` | `analysis/00` 第七节 Push 消息 |
+| `Push: feedback_required` | WebSocket Push | 1 | `frozen` | `analysis/00` 第七节 Push 消息 |
+| `Push: error` | WebSocket Push | 1 | `frozen` | `analysis/00` 第七节 Push 消息（含 error_code 枚举 8 种，DP1 新增 `PRIVACY_CONSENT_REQUIRED`） |
+| `RPC req: start_flow` | WebSocket RPC | 1 | `frozen` | `analysis/00` 第七节 RPC 请求 |
+| `RPC req: user_feedback` | WebSocket RPC | 1 | `frozen` | `analysis/00` 第七节 RPC 请求 |
+| `RPC req: resume_flow` | WebSocket RPC | 1 | `frozen` | `analysis/00` 第七节 RPC 请求 |
+| `RPC req: abort_flow` | WebSocket RPC | 1 | `frozen` | `analysis/00` 第七节 RPC 请求 |
+| `RPC resp: flow_started` | WebSocket RPC | 1 | `frozen` | `analysis/00` 第七节 RPC 响应 |
+| `RPC resp: feedback_accepted` | WebSocket RPC | 1 | `frozen` | `analysis/00` 第七节 RPC 响应 |
+| `RPC resp: flow_resumed` | WebSocket RPC | 1 | `frozen` | `analysis/00` 第七节 RPC 响应 |
+| `RPC resp: flow_aborted` | WebSocket RPC | 1 | `frozen` | `analysis/00` 第七节 RPC 响应 |
+| `Heartbeat: ping/pong (30s/10s/3-miss, 应用层 JSON)` | WebSocket 心跳 | 1 | `frozen` | `analysis/00` 第七节 + `analysis/08` §5.1（Starlette 不暴露协议层 ping） |
+| `Message correlation: message_id (UUID v4)` | WebSocket 关联 | 1 | `frozen` | `analysis/00` 第七节消息关联机制 |
+| `Error code enum (8 codes, DP1 +PRIVACY_CONSENT_REQUIRED)` | WebSocket 错误 | 1 | `frozen` | `analysis/00` 第七节 + `analysis/09` §六 |
+| `Security: prefilter.scrub(text) → ScrubResult` | Security | 1 | `frozen` | `analysis/09` §五（regex catalog 12 patterns） |
+| `Security: prefilter.restore(text, mapping) → text` | Security | 1 | `frozen` | `analysis/09` §五 round-trip 还原 |
+| `Security: OTEL_SDK_DISABLED=true 硬编码` | Security | 1 | `frozen` | `analysis/09` §七（不可配置覆盖） |
+| `Security: keyring (setPassword/getPassword/deletePassword)` | Security | 1 | `frozen` | `analysis/09` §二（`@napi-rs/keyring` + Electron safeStorage fallback） |
+| `UI: window1 (transparent, PixiJS, 0 React DOM)` | UI | 1 | `frozen` | `analysis/07` §三 + `specs/desktop-pet-ui/spec.md` D1-1 |
+| `UI: window2 (opaque, React 6 panels)` | UI | 1 | `frozen` | `analysis/07` §六 + D1-2 |
+| `UI: click-through hit-testing` | UI | 1 | `frozen` | `analysis/07` §四 + D1-3 |
+| `UI: window position persistence (localStorage)` | UI | 1 | `frozen` | `analysis/00` §六 + D1-2 |
+| `UI: privacy-consent-modal (D1-10 clarified)` | UI | 1 | `frozen` | `analysis/09` §六 + D1-10 拒绝仅 reject start_flow |
+| `UI: confirm-panel (D1-8 window1/window2 split)` | UI | 1 | `frozen` | `analysis/07` §八 + D1-8 |
+| `UI: AI-label "AI 驱动" (D1-12)` | UI | 1 | `frozen` | `analysis/09` §六 |
+| `Metrics: record_flow_metrics (4 fields)` | Metrics | 1 | `frozen` | `specs/observability/spec.md` D1-14 |
+| `Metrics: error_rate sliding window 100` | Metrics | 1 | `frozen` | 同上 |
+| `Remote: establishSshTunnel + classifySshStderr` | Remote | 1 | `frozen` | `analysis/08` §七 + `specs/remote-mode/spec.md` D1-16 |
 | `KG: find_callers(symbol_id, depth) → QueryResult` | KG API | 0 | `frozen` | `analysis/02` 第五节 KnowledgeGraphQueryAPI（Q1 影响面） |
 | `KG: find_file_impact(file_path) → QueryResult` | KG API | 0 | `frozen` | `analysis/02` 第五节（Q2 依赖方） |
 | `KG: find_dependencies(symbol_id) → QueryResult` | KG API | 0 | `frozen` | `analysis/02` 第五节（Q3 隐藏依赖） |
@@ -98,7 +112,44 @@
 
 | 契约名 | 测试代码路径 | 状态 |
 |--------|-------------|------|
-| （Dev-Phase 1+ 完成时填实） | | `pending` |
+| （Dev-Phase 2+ 完成时填实） | | `pending` |
+
+### Dev-Phase 1（frozen 2026-07-21，关联变更 `dev-phase-1-desktop-pet-mvp`）
+
+> **状态说明**：本变更引入 29 条契约（WebSocket IPC 16 + Security 4 + UI 7 + Metrics 2 + Remote 1，全部 = DP1 5 个 capability 的契约面），状态 `frozen`。所有契约的测试代码已落地并通过；标记为 `frozen (待 dev 机)` 的 UI 契约其 vitest 单测已 PASS，Playwright e2e 测试 stub 已就位但需在 Windows/macOS dev 机上跑 `npm run test:e2e` 才能闭合（详见 `design.md` 已接受风险 DP1-R2）。
+
+| 契约名 | 测试代码路径 | 状态 |
+|--------|-------------|------|
+| `Push: agent_state_change` | `backend/tests/ipc/test_schemas.py::test_agent_state_change_*` + `backend/tests/ipc/test_server.py::test_ws_*` | `frozen` |
+| `Push: document_produced` | `backend/tests/ipc/test_schemas.py::test_document_produced_valid` | `frozen` |
+| `Push: cost_update` | `backend/tests/ipc/test_schemas.py::test_cost_update_valid` + `::test_ws_full_mock_flow_pushes_documents_and_cost` | `frozen` |
+| `Push: feedback_required` | `backend/tests/ipc/test_schemas.py::test_feedback_required_carries_method` | `frozen` |
+| `Push: error` | `backend/tests/ipc/test_schemas.py::test_error_message_requires_known_error_code` + `::test_error_code_enum_has_all_8_values` | `frozen` |
+| `RPC req: start_flow` | `backend/tests/ipc/test_schemas.py::test_start_flow_requires_message_id_and_proposal` + `::test_ws_start_flow_returns_flow_started` | `frozen` |
+| `RPC req: user_feedback` | `backend/tests/ipc/test_schemas.py::test_user_feedback_outcome_enum` | `frozen` |
+| `RPC req: resume_flow` | `backend/tests/ipc/test_schemas.py::test_resume_flow_and_abort_flow_minimum_fields` | `frozen` |
+| `RPC req: abort_flow` | `backend/tests/ipc/test_schemas.py::test_resume_flow_and_abort_flow_minimum_fields` + `::test_ws_abort_flow_returns_flow_aborted` | `frozen` |
+| `RPC resp: flow_started` | `backend/tests/ipc/test_schemas.py::test_flow_started_echoes_message_id` | `frozen` |
+| `RPC resp: feedback_accepted` | `backend/tests/ipc/test_server.py::test_ws_full_mock_flow_pushes_documents_and_cost`（端到端覆盖 feedback 往返） | `frozen` |
+| `RPC resp: flow_resumed` | `backend/tests/ipc/test_schemas.py::test_flow_started_echoes_message_id`（schema 同源） | `frozen` |
+| `RPC resp: flow_aborted` | `backend/tests/ipc/test_schemas.py::test_flow_aborted_status` | `frozen` |
+| `Heartbeat: ping/pong (30s/10s/3-miss, 应用层 JSON)` | `backend/tests/ipc/test_heartbeat.py`（4 测试覆盖 ping 周期 + 3-miss 触发 + pong 重置 + clean stop） | `frozen` |
+| `Message correlation: message_id (UUID v4)` | `backend/tests/ipc/test_server.py::test_ws_start_flow_returns_flow_started`（响应含相同 message_id）+ `frontend/tests/unit/ws-client.test.ts::correlates RPC response` | `frozen` |
+| `Error code enum (8 codes)` | `backend/tests/ipc/test_schemas.py::test_error_code_enum_has_all_8_values` | `frozen` |
+| `Security: prefilter.scrub(text) → ScrubResult` | `backend/tests/security/test_prefilter.py`（25 测试含 catalog/round-trip/determinism/idempotence/randomized） | `frozen` |
+| `Security: prefilter.restore(text, mapping) → text` | `backend/tests/security/test_prefilter.py::test_restore_recovers_original_byte_for_byte` + `::test_restore_preserves_repeated_placeholders` | `frozen` |
+| `Security: OTEL_SDK_DISABLED=true 硬编码` | `backend/tests/security/test_otel_disabled.py`（5 测试覆盖 import 时设置/覆盖/无网络调用） | `frozen` |
+| `Security: keyring (setPassword/getPassword/deletePassword)` | `backend/tests/security/test_no_plaintext_key.py`（5 测试覆盖 D1-9 grep 验证）；`@napi-rs/keyring` 运行时由 dev 机手测 | `frozen` |
+| `UI: window1 (transparent, PixiJS, 0 React DOM)` | `frontend/tests/unit/pet-state.test.ts`（11 测试）+ `frontend/tests/e2e/window1-dom.test.ts`（Playwright stub，dev 机跑） | `frozen (待 dev 机)` |
+| `UI: window2 (opaque, React 6 panels)` | `frontend/tests/unit/panels.test.tsx`（14 测试，6 panel 各覆盖）+ `frontend/tests/e2e/window2-panels.test.ts`（Playwright stub） | `frozen (待 dev 机)` |
+| `UI: click-through hit-testing` | `frontend/tests/unit/pet-state.test.ts`（isInsidePet 逻辑）+ `frontend/tests/e2e/window1-click-through.test.ts`（Playwright stub） | `frozen (待 dev 机)` |
+| `UI: window position persistence (localStorage)` | 单测在 `frontend/tests/unit/panels.test.tsx` 部分覆盖；运行时由 dev 机手测 | `frozen (待 dev 机)` |
+| `UI: privacy-consent-modal (D1-10 clarified)` | `frontend/tests/unit/panels.test.tsx::<PrivacyConsentModal />` 3 测试 + D1-10 spec clarification | `frozen` |
+| `UI: confirm-panel (D1-8 window1/window2 split)` | `frontend/tests/unit/panels.test.tsx::<ConfirmPanel />` 3 测试 | `frozen` |
+| `UI: AI-label "AI 驱动" (D1-12)` | Pet renderer 源码 `frontend/src/window1-pet/pet.ts:117-122`（PixiJS Text 持续渲染）；运行时由 dev 机手测 | `frozen (待 dev 机)` |
+| `Metrics: record_flow_metrics (4 fields)` | `backend/tests/observability/test_metrics_recorder.py`（10 测试） | `frozen` |
+| `Metrics: error_rate sliding window 100` | `backend/tests/observability/test_metrics_recorder.py::test_error_rate_uses_sliding_window_100` | `frozen` |
+| `Remote: establishSshTunnel + classifySshStderr` | `frontend/tests/unit/ssh-tunnel.test.ts`（11 测试含 4 错误分类纯函数） | `frozen` |
 
 ---
 
