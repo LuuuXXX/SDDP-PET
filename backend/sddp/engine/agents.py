@@ -273,12 +273,33 @@ class AgentFactory:
         from ..schemas import SCHEMA_REGISTRY
 
         def _one_llm_round(schema_name: str | None, inputs: dict[str, Any]) -> tuple[dict[str, Any], bool, int, int]:
-            """Run one LLM round for an optional schema; return (result_dict, first_try_ok, prompt_tokens, completion_tokens)."""
+            """Run one LLM round for an optional schema; return (result_dict, first_try_ok, prompt_tokens, completion_tokens).
+
+            D1-11 integration: messages are passed through `sddp.security.prefilter.scrub`
+            before sending to the LLM; the response content is passed through `restore`
+            before parsing. This is the SINGLE chokepoint — no other code path may
+            call `self.llm_client.chat.completions.create` (per security-compliance spec
+            Requirement: 不允许绕过 prefilter).
+            """
+            from ..security.prefilter import scrub, restore
+
             backstory = BACKSTORIES[role]
-            messages = [
-                {"role": "system", "content": backstory},
-                {"role": "user", "content": self._format_user_input(role, inputs, schema_name)},
+            user_input = self._format_user_input(role, inputs, schema_name)
+
+            # Scrub all message parts (system, user, schema-hint) before LLM send.
+            # Backstory is project-controlled (low risk) but scrubbed anyway for
+            # defense-in-depth (cheap; regex over ~1KB text).
+            scrubbed_backstory = scrub(backstory)
+            scrubbed_user = scrub(user_input)
+            messages: list[dict[str, Any]] = [
+                {"role": "system", "content": scrubbed_backstory.scrubbed_text},
+                {"role": "user", "content": scrubbed_user.scrubbed_text},
             ]
+            # Combined mapping for restore on the way back
+            restore_mapping: dict[str, str] = {}
+            restore_mapping.update(scrubbed_backstory.mapping)
+            restore_mapping.update(scrubbed_user.mapping)
+
             kwargs: dict[str, Any] = {"model": model, "messages": messages}
             if schema_name:
                 if _provider_supports_strict_json_schema(model):
@@ -288,11 +309,14 @@ class AgentFactory:
                     # DeepSeek-style providers: only JSON mode, no schema enforcement.
                     # Prompt MUST request the schema explicitly; pydantic validates client-side.
                     schema_hint = SCHEMA_REGISTRY[schema_name].model_json_schema()
+                    schema_hint_str = __import__('json').dumps(schema_hint, ensure_ascii=False)
+                    scrubbed_hint = scrub(schema_hint_str)
+                    restore_mapping.update(scrubbed_hint.mapping)
                     messages.append({
                         "role": "system",
                         "content": (
                             f"Reply with a SINGLE JSON object conforming to this JSON Schema (no prose, no markdown):\n"
-                            f"{__import__('json').dumps(schema_hint, ensure_ascii=False)}"
+                            f"{scrubbed_hint.scrubbed_text}"
                         ),
                     })
                     kwargs["response_format"] = {"type": "json_object"}
@@ -303,6 +327,11 @@ class AgentFactory:
             completion_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
 
             content = response.choices[0].message.content
+            # Restore placeholders BEFORE pydantic parsing — the LLM should have
+            # produced JSON with placeholders; we substitute originals back so
+            # downstream schema validation sees real content.
+            if restore_mapping:
+                content = restore(content, restore_mapping)
             structured_first_try = True
             try:
                 if schema_name:

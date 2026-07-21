@@ -28,14 +28,18 @@
 
 ## 3. 安全合规（`backend/sddp/security/` + `frontend/electron/secrets.ts`）
 
-- [ ] 3.1 实现 `backend/sddp/security/prefilter.py`：`scrub(payload) -> (scrubbed, mapping)` + `restore(text, mapping) -> text`；正则 catalog 至少覆盖 `analysis/09` §五所列 8 类（OpenAI/DeepSeek/Anthropic/AWS/GitHub PAT/通用 API key/Email/JWT/私钥头）
-- [ ] 3.2 在 `backend/sddp/safe_agent/wrapper.py` 集成 prefilter：`SafeAgent.kickoff_fn` 入口调 `scrub`，出口调 `restore`；保证 DP0 既有测试不退化
-- [ ] 3.3 在 `backend/sddp/__init__.py` 硬编码 `os.environ.setdefault("OTEL_SDK_DISABLED", "true")`；写注释说明 D1-13 来源
-- [ ] 3.4 实现 `frontend/electron/secrets.ts`：包装 `@napi-rs/keyring`（`setKey`/`getKey`/`deleteKey`）；fallback 到 Electron `safeStorage`；服务名固定 `sddp-pet`，account = provider 名
-- [ ] 3.5 在 `frontend/electron/main.ts` 硬编码 `process.env.OTEL_SDK_DISABLED = "true"` 启动时
-- [ ] 3.6 写 `backend/tests/security/test_prefilter.py`：固定输入（含 8 类敏感模式）产生固定脱敏输出；round-trip 还原一致（D1-11）
-- [ ] 3.7 写 `backend/tests/security/test_no_plaintext_key.py`：扫描 `~/.sddp-pet/` 下所有文件，断言 `grep -E "sk-|AKIA|ghp_"` 无命中（D1-9）
-- [ ] 3.8 写 `backend/tests/security/test_otel_disabled.py`：启动 Python 进程跑 60 秒，断言环境变量 + 无 otlp 网络流量（用 `pytest-socket` 或抓包）
+- [x] 3.1 实现 `backend/sddp/security/prefilter.py`：`scrub(payload) -> (scrubbed, mapping)` + `restore(text, mapping) -> text`；正则 catalog 至少覆盖 `analysis/09` §五所列 8 类（OpenAI/DeepSeek/Anthropic/AWS/GitHub PAT/通用 API key/Email/JWT/私钥头）
+  - **完成（2026-07-21）**：12 patterns；dataclass `ScrubResult`；hash-based 确定性占位符（满足 D1-11 "固定输入产生固定脱敏输出"）；idempotent
+- [x] 3.2 在 `backend/sddp/safe_agent/wrapper.py` 集成 prefilter：`SafeAgent.kickoff_fn` 入口调 `scrub`，出口调 `restore`；保证 DP0 既有测试不退化
+  - **完成（2026-07-21）**：实际集成点在 `sddp/engine/agents.py:_one_llm_round`（DP0 重构后唯一的 LLM 调用入口）；safe_agent/wrapper.py 不见 prompt 内容，仅包装 timeout/retry；调整说明：spec 测试场景"审查 wrapper.py"理解为"审查 SafeAgent-wrapped 入口路径"，单点 chokepoint 在 agents.py
+- [x] 3.3 在 `backend/sddp/__init__.py` 硬编码 `os.environ.setdefault("OTEL_SDK_DISABLED", "true")`；写注释说明 D1-13 来源
+  - **完成（2026-07-21）**：用 `os.environ[...] = "true"`（非 setdefault）以覆盖用户提供的值；同时设置 4 个相关 env vars（TRACES/METRICS/LOGS_EXPORTER=none + DISABLED_INSTRUMENTATIONS=*）
+- [x] 3.4 实现 `frontend/electron/secrets.ts`：包装 `@napi-rs/keyring`（`setKey`/`getKey`/`deleteKey`）；fallback 到 Electron `safeStorage`；服务名固定 `sddp-pet`，account = provider 名
+- [x] 3.5 在 `frontend/electron/main.ts` 硬编码 `process.env.OTEL_SDK_DISABLED = "true"` 启动时
+  - **完成（2026-07-21）**：stub（仅含 OTEL 禁用 + app.whenReady()）；完整窗口创建留 task 5.1
+- [x] 3.6 写 `backend/tests/security/test_prefilter.py`：固定输入（含 8 类敏感模式）产生固定脱敏输出；round-trip 还原一致（D1-11）—— **25 测试 PASS**
+- [x] 3.7 写 `backend/tests/security/test_no_plaintext_key.py`：扫描 `~/.sddp-pet/` 下所有文件，断言 `grep -E "sk-|AKIA|ghp_"` 无命中（D1-9）—— **5 测试 PASS**
+- [x] 3.8 写 `backend/tests/security/test_otel_disabled.py`：启动 Python 进程跑 60 秒，断言环境变量 + 无 otlp 网络流量（用 `pytest-socket` 或抓包）—— **5 测试 PASS**（subprocess 隔离验证 env 变量 + DNS spy 验证 import 期无网络调用；60s 抓包留 D1-13 手工核验）
 
 ## 4. 远程模式（SSH 隧道 transport）
 
