@@ -16,15 +16,7 @@ import { Application, Graphics, Text, TextStyle, Container } from "pixi.js";
 import type { PetModel, PetState } from "./pet-state";
 import { createPetModel, transition } from "./pet-state";
 
-declare global {
-  interface Window {
-    sddp?: {
-      sendPetHitChange: (isHit: boolean) => void;
-      onPersistPosition?: (cb: (p: { key: string; x: number; y: number }) => void) => void;
-      restorePosition?: (key: string, x: number, y: number) => void;
-    };
-  }
-}
+// Global `window.sddp` type comes from src/shared/global.d.ts (loaded via tsconfig).
 
 // Color per state (simple visual cue; DP2 adds sprite animation)
 const STATE_COLORS: Record<PetState, number> = {

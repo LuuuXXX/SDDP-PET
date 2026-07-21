@@ -347,6 +347,17 @@ def _run_flow_in_thread(
             agent="(engine)", state=AgentState.IDLE,
             detail=f"flow completed: {len(result.completed_steps)} steps",
         ).model_dump())
+
+        # D1-14: record 4 metrics to ~/.sddp-pet/metrics.json
+        try:
+            from ..observability.metrics_recorder import record_flow_metrics
+            record_flow_metrics(
+                flow_id=flow_id,
+                status="completed",
+                cost_meter=cost_meter,
+            )
+        except Exception as e:
+            logger.warning("record_flow_metrics (completed) failed (non-fatal): %s", e)
     except Exception as e:
         logger.exception("flow thread crashed: %s", e)
         broadcast_sync(ErrorMessage(
@@ -356,6 +367,16 @@ def _run_flow_in_thread(
             severity=Severity.CRITICAL,
             recoverable=False,
         ).model_dump())
+        # D1-14: also record failed flows (status="failed")
+        try:
+            from ..observability.metrics_recorder import record_flow_metrics
+            record_flow_metrics(
+                flow_id=flow_id,
+                status="failed",
+                cost_meter=cost_meter,
+            )
+        except Exception as e2:
+            logger.warning("record_flow_metrics (failed) failed (non-fatal): %s", e2)
     finally:
         app.state.active_flow.pop(flow_id, None)
 
