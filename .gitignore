@@ -40,6 +40,8 @@ flow_state.db
 out/
 # Cost reports from ad-hoc runs (regenerable)
 cost_report.json
+# Ad-hoc baseline run outputs (regenerable; e.g. P3 DeepSeek baseline)
+.p3-baseline-*
 !openspec/regression/**/*.md
 
 # ---- Secrets (never commit) ----

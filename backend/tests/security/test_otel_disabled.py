@@ -8,6 +8,7 @@ This test verifies:
   2. The env var CANNOT be unset by configuration (it's hardcoded before user code runs)
   3. No OTEL network traffic is initiated at import time
 """
+
 from __future__ import annotations
 
 import os
@@ -30,7 +31,9 @@ def test_sddp_init_sets_otel_disabled():
     clean_env = {k: v for k, v in os.environ.items() if k != "OTEL_SDK_DISABLED"}
     result = subprocess.run(
         [sys.executable, "-c", code],
-        capture_output=True, text=True, env=clean_env,
+        capture_output=True,
+        text=True,
+        env=clean_env,
         cwd=str(Path(__file__).parent.parent.parent),
     )
     assert result.returncode == 0, f"sddp import failed: {result.stderr}"
@@ -49,7 +52,8 @@ def test_otel_disabled_overrides_user_provided_value():
     )
     result = subprocess.run(
         [sys.executable, "-c", code],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
         cwd=str(Path(__file__).parent.parent.parent),
     )
     assert result.returncode == 0, f"override test failed: {result.stderr}"
@@ -66,7 +70,8 @@ def test_otel_exporter_env_vars_also_set():
     )
     result = subprocess.run(
         [sys.executable, "-c", code],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
         cwd=str(Path(__file__).parent.parent.parent),
     )
     assert result.returncode == 0, f"exporter check failed: {result.stderr}"
@@ -97,7 +102,8 @@ print('OK')
 """
     result = subprocess.run(
         [sys.executable, "-c", code],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
         cwd=str(Path(__file__).parent.parent.parent),
     )
     assert result.returncode == 0, f"network check failed: {result.stderr}"
@@ -110,6 +116,8 @@ def test_sddp_init_module_source_contains_hardcoded_string():
     This guards against accidental removal in a future refactor.
     """
     init_path = Path(__file__).parent.parent.parent / "sddp" / "__init__.py"
-    src = init_path.read_text()
-    assert 'OTEL_SDK_DISABLED' in src, "sddp/__init__.py must reference OTEL_SDK_DISABLED"
+    src = init_path.read_text(encoding="utf-8")
+    assert "OTEL_SDK_DISABLED" in src, (
+        "sddp/__init__.py must reference OTEL_SDK_DISABLED"
+    )
     assert '"true"' in src or "'true'" in src, "OTEL_SDK_DISABLED must be set to 'true'"

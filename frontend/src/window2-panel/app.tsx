@@ -39,7 +39,7 @@ const PRIVACY_CONSENT_KEY = "sddp:privacy-consent";
 
 type Tab = "state" | "diagnostic" | "settings";
 
-function App() {
+export function App() {
   const [client, setClient] = useState<SddpClient | null>(null);
   const [connState, setConnState] = useState<ConnectionState>("disconnected");
   const [tab, setTab] = useState<Tab>("state");
