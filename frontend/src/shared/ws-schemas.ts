@@ -70,6 +70,7 @@ export const AgentStateChangeSchema = z.object({
   state: AgentStateSchema,
   phase: z.string().nullable().optional(),
   round: z.number().nullable().optional(),
+  role: z.string().nullable().optional(), // DP2 additive (architect/critic/empiricist/orchestrator)
   detail: z.string().nullable().optional(),
 });
 export type AgentStateChange = z.infer<typeof AgentStateChangeSchema>;
@@ -193,6 +194,7 @@ export interface StartFlowRequest {
   proposal: string;
   pcm?: unknown;
   project_path: string;
+  phase?: "linear" | "confrontation"; // DP2 additive (default 'linear')
 }
 
 export interface UserFeedbackRequest {
