@@ -11,6 +11,7 @@ Threading model: the flow runs in a worker thread; the WS server runs in the
 asyncio event loop. We bridge sync↔async via an `asyncio.Event` + a pending-
 request slot the WS handler mutates.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -99,12 +100,14 @@ class WebSocketHumanFeedbackAdapter:
 
         response = self._pending.get(method.value, {})
         approved = response.get("feedback") == FeedbackOutcome.Y.value
-        self.history.append({
-            "kind": kind,
-            "approved": approved,
-            "feedback": response.get("feedback"),
-            "outcome": response.get("outcome"),
-        })
+        self.history.append(
+            {
+                "kind": kind,
+                "approved": approved,
+                "feedback": response.get("feedback"),
+                "outcome": response.get("outcome"),
+            }
+        )
 
         with self._lock:
             self._events.pop(method.value, None)
@@ -156,6 +159,8 @@ def _short_prompt(kind: str, payload: dict[str, Any]) -> str:
         return "等待方案确认"
     if kind == FeedbackMethod.TASK_CONFIRMATION.value:
         return "等待任务确认"
+    if kind == FeedbackMethod.FORCE_CONVERGENCE.value:
+        return "对抗已达上限，等待裁决"
     return f"等待确认: {kind}"
 
 

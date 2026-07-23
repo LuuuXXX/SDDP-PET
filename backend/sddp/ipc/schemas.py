@@ -8,6 +8,7 @@ Per `specs/websocket-ipc/spec.md`:
   - Non-error messages MUST carry `flow_id`.
   - RPC requests MUST carry `message_id` (UUID v4); RPC responses echo the same `message_id`.
 """
+
 from __future__ import annotations
 
 from enum import Enum
@@ -57,11 +58,12 @@ class DocType(str, Enum):
 
 
 class FeedbackMethod(str, Enum):
-    """The 3 confirmation points in the linear flow (specs/cli-runner)."""
+    """Confirmation points (specs/cli-runner). DP1: 3 linear points; DP2 adds force-convergence."""
 
     REQUIREMENT_CONFIRMATION = "requirement_confirmation"
     DESIGN_CONFIRMATION = "design_confirmation"
     TASK_CONFIRMATION = "task_confirmation"
+    FORCE_CONVERGENCE = "force_convergence"  # DP2 additive (D2-2): max_rounds escalate
 
 
 class FlowStatus(str, Enum):
@@ -87,7 +89,10 @@ class _WSMessage(BaseModel):
 
     type: str = Field(description="Message type discriminator")
     timestamp: str = Field(description="ISO 8601 UTC timestamp")
-    flow_id: str | None = Field(default=None, description="Associated flow (None only for connection-level errors)")
+    flow_id: str | None = Field(
+        default=None,
+        description="Associated flow (None only for connection-level errors)",
+    )
 
 
 # ---- 5 Push messages (engine → frontend) ----
@@ -95,10 +100,16 @@ class _WSMessage(BaseModel):
 
 class AgentStateChange(_WSMessage):
     type: Literal["agent_state_change"] = "agent_state_change"
-    agent: str = Field(description="Role name: requirement_officer / orchestrator / architect / executor / code_asset_manager")
+    agent: str = Field(
+        description="Role name: requirement_officer / orchestrator / architect / executor / code_asset_manager"
+    )
     state: AgentState
     phase: str | None = Field(default=None, description="SDDP Phase 0/1/2/3")
     round: int | None = Field(default=None, description="Confrontation round (DP2+)")
+    role: str | None = Field(
+        default=None,
+        description="DP2 additive: architect/critic/empiricist/orchestrator (None in linear flow)",
+    )
     detail: str | None = None
 
 
@@ -106,22 +117,30 @@ class DocumentProduced(_WSMessage):
     type: Literal["document_produced"] = "document_produced"
     agent: str
     doc_type: DocType
-    doc_id: str = Field(description="Stable identifier (e.g. 'proposal-<flow_id>-<timestamp>')")
-    summary: str = Field(default="", description="One-paragraph summary for the UI document list")
+    doc_id: str = Field(
+        description="Stable identifier (e.g. 'proposal-<flow_id>-<timestamp>')"
+    )
+    summary: str = Field(
+        default="", description="One-paragraph summary for the UI document list"
+    )
 
 
 class CostUpdate(_WSMessage):
     type: Literal["cost_update"] = "cost_update"
     total_tokens: int
     estimated_cost_usd: float
-    round_tokens: dict[str, int] = Field(default_factory=dict, description="Per-agent token breakdown")
+    round_tokens: dict[str, int] = Field(
+        default_factory=dict, description="Per-agent token breakdown"
+    )
 
 
 class FeedbackRequired(_WSMessage):
     type: Literal["feedback_required"] = "feedback_required"
     method: FeedbackMethod
     message: str = Field(description="Short prompt to display in window1 bubble")
-    output: dict[str, Any] = Field(description="Full content awaiting confirmation (passed to window2 ConfirmPanel)")
+    output: dict[str, Any] = Field(
+        description="Full content awaiting confirmation (passed to window2 ConfirmPanel)"
+    )
 
 
 class ErrorMessage(_WSMessage):
@@ -140,7 +159,9 @@ class StartFlow(_WSMessage):
     type: Literal["start_flow"] = "start_flow"
     message_id: str = Field(description="UUID v4 for request-response correlation")
     proposal: str
-    pcm: dict[str, Any] | None = Field(default=None, description="Project Configuration Manifest; optional")
+    pcm: dict[str, Any] | None = Field(
+        default=None, description="Project Configuration Manifest; optional"
+    )
     project_path: str
 
 
@@ -149,7 +170,9 @@ class UserFeedback(_WSMessage):
     message_id: str
     flow_id: str
     feedback: FeedbackOutcome
-    outcome: dict[str, Any] | None = Field(default=None, description="Optional edited payload when feedback='e'")
+    outcome: dict[str, Any] | None = Field(
+        default=None, description="Optional edited payload when feedback='e'"
+    )
 
 
 class ResumeFlow(_WSMessage):
@@ -205,7 +228,9 @@ class Ping(_WSMessage):
 
 class Pong(_WSMessage):
     type: Literal["pong"] = "pong"
-    ping_timestamp: str = Field(description="Echo of the ping timestamp being acknowledged")
+    ping_timestamp: str = Field(
+        description="Echo of the ping timestamp being acknowledged"
+    )
 
 
 # ---- registry & parse dispatch ----
