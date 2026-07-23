@@ -14,16 +14,21 @@
  */
 import { Application, Graphics, Text, TextStyle, Container } from "pixi.js";
 import type { PetModel, PetState } from "./pet-state";
-import { createPetModel, transition } from "./pet-state";
+import { createPetModel, transition, roleLabel } from "./pet-state";
 
 // Global `window.sddp` type comes from src/shared/global.d.ts (loaded via tsconfig).
 
-// Color per state (simple visual cue; DP2 adds sprite animation)
+// Color per state (simple visual cue; DP2 adds 4 confrontation states)
 const STATE_COLORS: Record<PetState, number> = {
   idle: 0x4ade80,      // green
   working: 0x60a5fa,   // blue
   waiting: 0xfacc15,   // yellow
   error: 0xef4444,     // red
+  // DP2 confrontation states (D2-3) — placeholder colors (no sprite art yet)
+  debating: 0xf97316,   // orange — critic/empiricist/orchestrator speaking
+  rebutted: 0x8b5cf6,   // purple — architect revising
+  converged: 0x10b981,  // emerald — converged
+  escalated: 0xdc2626,  // strong red — force-converged escalate
 };
 
 const STATE_LABELS: Record<PetState, string> = {
@@ -31,7 +36,14 @@ const STATE_LABELS: Record<PetState, string> = {
   working: "工作中",
   waiting: "等待确认",
   error: "出错",
+  debating: "对抗辩论中",
+  rebutted: "修订中",
+  converged: "已收敛",
+  escalated: "已升级裁决",
 };
+
+// DP2 role prefix (D2-3): shown in bubble when a confrontation role is active.
+// Placeholder for sprite art — distinct color + label per role for now.
 
 const PET_RADIUS = 60;
 const BUBBLE_OFFSET_X = 80;
@@ -114,7 +126,8 @@ export function mountPetRenderer(canvas: HTMLCanvasElement): PetRenderer {
     pet.fill({ color: STATE_COLORS[model.state] });
     pet.stroke({ color: 0xffffff, width: 3 });
 
-    bubble.text = model.bubbleText || STATE_LABELS[model.state];
+    const rolePrefix = model.role ? roleLabel(model.role) + "·" : "";
+    bubble.text = rolePrefix + (model.bubbleText || STATE_LABELS[model.state]);
     bubble.position.set(140 + BUBBLE_OFFSET_X, 160 + BUBBLE_OFFSET_Y);
 
     aiLabel.position.set(140, 160 + AI_LABEL_OFFSET_Y);
