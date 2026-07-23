@@ -11,6 +11,7 @@ Threading: FastAPI/Starlette run on the asyncio loop. The SDDP flow itself is
 blocking (CrewAI sync) and runs in a worker thread; results are pushed back via
 `broadcaster` (an asyncio-safe queue bridging threads).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -28,6 +29,7 @@ from ..engine.cost_meter import CostMeter
 from ..engine.flows.phase_0_2_linear import LinearPhase02Flow
 from ..engine.kg_tools import KGTools
 from ..schemas import Proposal, DeltaSpec, DeltaDesign
+from .confrontation_runner import run_confrontation_in_thread
 from .feedback_adapter import WebSocketHumanFeedbackAdapter
 from .heartbeat import HeartbeatMonitor
 from .schemas import (
@@ -63,6 +65,7 @@ def create_app(
     kg_db_path: str | None = None,
     flow_db_path: str | None = None,
     mock_mode: bool = False,
+    confrontation_agents_factory=None,
 ) -> FastAPI:
     """Build the FastAPI app with the /ws endpoint.
 
@@ -79,6 +82,9 @@ def create_app(
     app.state.flow_db_path = flow_db_path
     app.state.mock_mode = mock_mode
     app.state.active_flow: dict[str, Any] = {}  # flow_id → thread/handler info
+    # DP2 additive: factory () -> dict[str, AgentFn] for the confrontation flow.
+    # None = confrontation mode unavailable (start_flow phase=confrontation errors).
+    app.state.confrontation_agents_factory = confrontation_agents_factory
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -103,19 +109,23 @@ def create_app(
             """Thread-safe push to the client."""
             async with ws_lock:
                 try:
-                    await websocket.send_text(json.dumps(message, default=str, ensure_ascii=False))
+                    await websocket.send_text(
+                        json.dumps(message, default=str, ensure_ascii=False)
+                    )
                 except Exception as e:
                     logger.warning("broadcast failed: %s", e)
 
         async def on_heartbeat_lost() -> None:
-            await broadcast(ErrorMessage(
-                timestamp=_utc_now(),
-                agent=None,
-                error_code=ErrorCode.SSH_CONNECTION_LOST,
-                message="heartbeat: 3 consecutive pongs missed",
-                severity=Severity.ERROR,
-                recoverable=True,
-            ).model_dump())
+            await broadcast(
+                ErrorMessage(
+                    timestamp=_utc_now(),
+                    agent=None,
+                    error_code=ErrorCode.SSH_CONNECTION_LOST,
+                    message="heartbeat: 3 consecutive pongs missed",
+                    severity=Severity.ERROR,
+                    recoverable=True,
+                ).model_dump()
+            )
             # The flow thread (if any) keeps running until user resumes; we just
             # notify the client. Client should reconnect + send resume_flow.
 
@@ -123,11 +133,15 @@ def create_app(
         await heartbeat.start()
 
         # Send initial ready signal
-        await broadcast(AgentStateChange(
-            timestamp=_utc_now(), flow_id=None,
-            agent="(engine)", state=AgentState.IDLE,
-            detail="WS connected; awaiting start_flow",
-        ).model_dump())
+        await broadcast(
+            AgentStateChange(
+                timestamp=_utc_now(),
+                flow_id=None,
+                agent="(engine)",
+                state=AgentState.IDLE,
+                detail="WS connected; awaiting start_flow",
+            ).model_dump()
+        )
 
         try:
             while True:
@@ -135,25 +149,29 @@ def create_app(
                 try:
                     raw = json.loads(raw_text)
                 except json.JSONDecodeError as e:
-                    await broadcast(ErrorMessage(
-                        timestamp=_utc_now(),
-                        error_code=ErrorCode.PARSE_FAILURE,
-                        message=f"invalid JSON: {e}",
-                        severity=Severity.WARNING,
-                        recoverable=True,
-                    ).model_dump())
+                    await broadcast(
+                        ErrorMessage(
+                            timestamp=_utc_now(),
+                            error_code=ErrorCode.PARSE_FAILURE,
+                            message=f"invalid JSON: {e}",
+                            severity=Severity.WARNING,
+                            recoverable=True,
+                        ).model_dump()
+                    )
                     continue
 
                 try:
                     msg = parse_message(raw)
                 except Exception as e:
-                    await broadcast(ErrorMessage(
-                        timestamp=_utc_now(),
-                        error_code=ErrorCode.PARSE_FAILURE,
-                        message=f"schema validation failed: {e}",
-                        severity=Severity.WARNING,
-                        recoverable=True,
-                    ).model_dump())
+                    await broadcast(
+                        ErrorMessage(
+                            timestamp=_utc_now(),
+                            error_code=ErrorCode.PARSE_FAILURE,
+                            message=f"schema validation failed: {e}",
+                            severity=Severity.WARNING,
+                            recoverable=True,
+                        ).model_dump()
+                    )
                     continue
 
                 # Heartbeat: handle here so the flow thread isn't involved
@@ -164,22 +182,87 @@ def create_app(
                 # RPC dispatch
                 if isinstance(msg, StartFlow):
                     if app.state.active_flow:
-                        await broadcast(ErrorMessage(
-                            timestamp=_utc_now(),
-                            error_code=ErrorCode.FLOW_STUCK,
-                            message="a flow is already running; abort it first",
-                            severity=Severity.WARNING,
-                            recoverable=True,
-                        ).model_dump())
+                        await broadcast(
+                            ErrorMessage(
+                                timestamp=_utc_now(),
+                                error_code=ErrorCode.FLOW_STUCK,
+                                message="a flow is already running; abort it first",
+                                severity=Severity.WARNING,
+                                recoverable=True,
+                            ).model_dump()
+                        )
                         continue
                     current_flow_id = msg.flow_id or str(uuid.uuid4())
                     feedback_adapter = WebSocketHumanFeedbackAdapter(
                         broadcast,
                         flow_id_provider=lambda: current_flow_id,
                     )
+                    phase = getattr(msg, "phase", "linear")
+                    if phase == "confrontation":
+                        # DP2 adversarial flow branch (additive; linear path unchanged)
+                        if app.state.confrontation_agents_factory is None:
+                            await broadcast(
+                                ErrorMessage(
+                                    timestamp=_utc_now(),
+                                    flow_id=current_flow_id,
+                                    error_code=ErrorCode.FLOW_STUCK,
+                                    message="confrontation mode not configured on this server",
+                                    severity=Severity.WARNING,
+                                    recoverable=True,
+                                ).model_dump()
+                            )
+                            continue
+                        agents = app.state.confrontation_agents_factory()
+
+                        def _conf_broadcast_sync(message: dict[str, Any]) -> None:
+                            if main_loop is None or main_loop.is_closed():
+                                return
+                            try:
+                                fut = asyncio.run_coroutine_threadsafe(
+                                    broadcast(message), main_loop
+                                )
+                                fut.result(timeout=10.0)
+                            except Exception as e:
+                                logger.warning(
+                                    "confrontation broadcast_sync failed: %s", e
+                                )
+
+                        flow_thread = threading.Thread(
+                            target=run_confrontation_in_thread,
+                            args=(
+                                msg.proposal,
+                                current_flow_id,
+                                agents,
+                                feedback_adapter,
+                                _conf_broadcast_sync,
+                            ),
+                            daemon=True,
+                        )
+                    else:
+                        flow_thread = threading.Thread(
+                            target=_run_flow_in_thread,
+                            args=(
+                                app,
+                                msg,
+                                current_flow_id,
+                                feedback_adapter,
+                                broadcast,
+                                main_loop,
+                                flow_stop_event,
+                            ),
+                            daemon=True,
+                        )
                     flow_thread = threading.Thread(
                         target=_run_flow_in_thread,
-                        args=(app, msg, current_flow_id, feedback_adapter, broadcast, main_loop, flow_stop_event),
+                        args=(
+                            app,
+                            msg,
+                            current_flow_id,
+                            feedback_adapter,
+                            broadcast,
+                            main_loop,
+                            flow_stop_event,
+                        ),
                         daemon=True,
                     )
                     app.state.active_flow[current_flow_id] = {
@@ -188,62 +271,74 @@ def create_app(
                         "stop_event": flow_stop_event,
                     }
                     flow_thread.start()
-                    await broadcast(FlowStarted(
-                        timestamp=_utc_now(),
-                        message_id=msg.message_id,
-                        flow_id=current_flow_id,
-                    ).model_dump())
+                    await broadcast(
+                        FlowStarted(
+                            timestamp=_utc_now(),
+                            message_id=msg.message_id,
+                            flow_id=current_flow_id,
+                        ).model_dump()
+                    )
                     continue
 
                 if isinstance(msg, UserFeedback):
                     if feedback_adapter is None:
-                        await broadcast(ErrorMessage(
-                            timestamp=_utc_now(),
-                            flow_id=msg.flow_id,
-                            error_code=ErrorCode.FLOW_STUCK,
-                            message="no active flow to receive feedback",
-                            severity=Severity.WARNING,
-                            recoverable=True,
-                        ).model_dump())
+                        await broadcast(
+                            ErrorMessage(
+                                timestamp=_utc_now(),
+                                flow_id=msg.flow_id,
+                                error_code=ErrorCode.FLOW_STUCK,
+                                message="no active flow to receive feedback",
+                                severity=Severity.WARNING,
+                                recoverable=True,
+                            ).model_dump()
+                        )
                         continue
                     feedback_adapter.deliver_user_feedback(msg)
-                    await broadcast(FeedbackAccepted(
-                        timestamp=_utc_now(),
-                        message_id=msg.message_id,
-                        flow_id=msg.flow_id,
-                    ).model_dump())
+                    await broadcast(
+                        FeedbackAccepted(
+                            timestamp=_utc_now(),
+                            message_id=msg.message_id,
+                            flow_id=msg.flow_id,
+                        ).model_dump()
+                    )
                     continue
 
                 if isinstance(msg, ResumeFlow):
                     # DP1 MVP: resume not fully wired through WS (CLI has it); for now
                     # respond with flow_resumed and rely on client to start a fresh flow
                     # with the same flow_id later. Full WS-resume is a follow-up task.
-                    await broadcast(FlowResumed(
-                        timestamp=_utc_now(),
-                        message_id=msg.message_id,
-                        flow_id=msg.flow_id,
-                    ).model_dump())
+                    await broadcast(
+                        FlowResumed(
+                            timestamp=_utc_now(),
+                            message_id=msg.message_id,
+                            flow_id=msg.flow_id,
+                        ).model_dump()
+                    )
                     continue
 
                 if isinstance(msg, AbortFlow):
                     flow_stop_event.set()
                     if current_flow_id and current_flow_id in app.state.active_flow:
                         app.state.active_flow.pop(current_flow_id, None)
-                    await broadcast(FlowAborted(
-                        timestamp=_utc_now(),
-                        message_id=msg.message_id,
-                        flow_id=msg.flow_id,
-                    ).model_dump())
+                    await broadcast(
+                        FlowAborted(
+                            timestamp=_utc_now(),
+                            message_id=msg.message_id,
+                            flow_id=msg.flow_id,
+                        ).model_dump()
+                    )
                     continue
 
                 # Push messages from client → server are protocol violations
-                await broadcast(ErrorMessage(
-                    timestamp=_utc_now(),
-                    error_code=ErrorCode.PARSE_FAILURE,
-                    message=f"unexpected message type from client: {getattr(msg, 'type', '?')}",
-                    severity=Severity.WARNING,
-                    recoverable=True,
-                ).model_dump())
+                await broadcast(
+                    ErrorMessage(
+                        timestamp=_utc_now(),
+                        error_code=ErrorCode.PARSE_FAILURE,
+                        message=f"unexpected message type from client: {getattr(msg, 'type', '?')}",
+                        severity=Severity.WARNING,
+                        recoverable=True,
+                    ).model_dump()
+                )
 
         except WebSocketDisconnect:
             logger.info("WS client disconnected")
@@ -270,6 +365,7 @@ def _run_flow_in_thread(
     `main_loop` is captured from the WS server's running loop so we can schedule
     async broadcasts from this sync thread via `run_coroutine_threadsafe`.
     """
+
     def broadcast_sync(message: dict[str, Any]) -> None:
         if main_loop is None or main_loop.is_closed():
             return
@@ -310,47 +406,75 @@ def _run_flow_in_thread(
 
         # Push documents
         if result.proposal:
-            broadcast_sync(DocumentProduced(
-                timestamp=_utc_now(), flow_id=flow_id,
-                agent="requirement_officer", doc_type="proposal",
-                doc_id=f"proposal-{flow_id}", summary=str(result.proposal.get("title", ""))[:200],
-            ).model_dump())
+            broadcast_sync(
+                DocumentProduced(
+                    timestamp=_utc_now(),
+                    flow_id=flow_id,
+                    agent="requirement_officer",
+                    doc_type="proposal",
+                    doc_id=f"proposal-{flow_id}",
+                    summary=str(result.proposal.get("title", ""))[:200],
+                ).model_dump()
+            )
         if result.delta_spec:
-            broadcast_sync(DocumentProduced(
-                timestamp=_utc_now(), flow_id=flow_id,
-                agent="architect", doc_type="delta_spec",
-                doc_id=f"delta_spec-{flow_id}", summary=str(result.delta_spec.get("title", ""))[:200],
-            ).model_dump())
+            broadcast_sync(
+                DocumentProduced(
+                    timestamp=_utc_now(),
+                    flow_id=flow_id,
+                    agent="architect",
+                    doc_type="delta_spec",
+                    doc_id=f"delta_spec-{flow_id}",
+                    summary=str(result.delta_spec.get("title", ""))[:200],
+                ).model_dump()
+            )
         if result.delta_design:
-            broadcast_sync(DocumentProduced(
-                timestamp=_utc_now(), flow_id=flow_id,
-                agent="architect", doc_type="delta_design",
-                doc_id=f"delta_design-{flow_id}", summary=str(result.delta_design.get("title", ""))[:200],
-            ).model_dump())
+            broadcast_sync(
+                DocumentProduced(
+                    timestamp=_utc_now(),
+                    flow_id=flow_id,
+                    agent="architect",
+                    doc_type="delta_design",
+                    doc_id=f"delta_design-{flow_id}",
+                    summary=str(result.delta_design.get("title", ""))[:200],
+                ).model_dump()
+            )
         if result.architecture_research:
-            broadcast_sync(DocumentProduced(
-                timestamp=_utc_now(), flow_id=flow_id,
-                agent="architect", doc_type="architecture_research",
-                doc_id=f"architecture_research-{flow_id}", summary=str(result.architecture_research.get("title", ""))[:200],
-            ).model_dump())
+            broadcast_sync(
+                DocumentProduced(
+                    timestamp=_utc_now(),
+                    flow_id=flow_id,
+                    agent="architect",
+                    doc_type="architecture_research",
+                    doc_id=f"architecture_research-{flow_id}",
+                    summary=str(result.architecture_research.get("title", ""))[:200],
+                ).model_dump()
+            )
 
         # Final cost update
         report = cost_meter.to_report_dict()
-        broadcast_sync(CostUpdate(
-            timestamp=_utc_now(), flow_id=flow_id,
-            total_tokens=report.get("total_tokens", 0),
-            estimated_cost_usd=report.get("measured_cost_usd", 0.0),
-            round_tokens=report.get("round_tokens", {}),
-        ).model_dump())
-        broadcast_sync(AgentStateChange(
-            timestamp=_utc_now(), flow_id=flow_id,
-            agent="(engine)", state=AgentState.IDLE,
-            detail=f"flow completed: {len(result.completed_steps)} steps",
-        ).model_dump())
+        broadcast_sync(
+            CostUpdate(
+                timestamp=_utc_now(),
+                flow_id=flow_id,
+                total_tokens=report.get("total_tokens", 0),
+                estimated_cost_usd=report.get("measured_cost_usd", 0.0),
+                round_tokens=report.get("round_tokens", {}),
+            ).model_dump()
+        )
+        broadcast_sync(
+            AgentStateChange(
+                timestamp=_utc_now(),
+                flow_id=flow_id,
+                agent="(engine)",
+                state=AgentState.IDLE,
+                detail=f"flow completed: {len(result.completed_steps)} steps",
+            ).model_dump()
+        )
 
         # D1-14: record 4 metrics to ~/.sddp-pet/metrics.json
         try:
             from ..observability.metrics_recorder import record_flow_metrics
+
             record_flow_metrics(
                 flow_id=flow_id,
                 status="completed",
@@ -360,16 +484,20 @@ def _run_flow_in_thread(
             logger.warning("record_flow_metrics (completed) failed (non-fatal): %s", e)
     except Exception as e:
         logger.exception("flow thread crashed: %s", e)
-        broadcast_sync(ErrorMessage(
-            timestamp=_utc_now(), flow_id=flow_id,
-            error_code=ErrorCode.FLOW_STUCK,
-            message=f"flow crashed: {e}",
-            severity=Severity.CRITICAL,
-            recoverable=False,
-        ).model_dump())
+        broadcast_sync(
+            ErrorMessage(
+                timestamp=_utc_now(),
+                flow_id=flow_id,
+                error_code=ErrorCode.FLOW_STUCK,
+                message=f"flow crashed: {e}",
+                severity=Severity.CRITICAL,
+                recoverable=False,
+            ).model_dump()
+        )
         # D1-14: also record failed flows (status="failed")
         try:
             from ..observability.metrics_recorder import record_flow_metrics
+
             record_flow_metrics(
                 flow_id=flow_id,
                 status="failed",
@@ -383,8 +511,10 @@ def _run_flow_in_thread(
 
 def _default_factory_factory(cost_meter: CostMeter, kg_tools):
     """Default: mock-mode factory (no LLM). Production passes a real factory."""
+
     def factory() -> AgentFactory:
         return AgentFactory(mock_mode=True, cost_meter=cost_meter, kg_tools=kg_tools)
+
     return factory()
 
 

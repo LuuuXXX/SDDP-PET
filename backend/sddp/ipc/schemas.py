@@ -163,6 +163,10 @@ class StartFlow(_WSMessage):
         default=None, description="Project Configuration Manifest; optional"
     )
     project_path: str
+    phase: str = Field(
+        default="linear",
+        description="DP2 additive: 'linear' (DP1 default) or 'confrontation' (DP2 adversarial flow)",
+    )
 
 
 class UserFeedback(_WSMessage):
